@@ -3,7 +3,7 @@ from matplotlib.colors import LogNorm
 from scipy.stats import multivariate_normal
 from sklearn.datasets import load_iris
 import matplotlib.pyplot as plt
-from sklearn.metrics import accuracy_score
+from sklearn.metrics import accuracy_score, adjusted_rand_score
 
 
 class GMM:
@@ -42,9 +42,9 @@ class GMM:
     def _likelihood(self, X):
         likelihood = np.zeros((X.shape[0], self.k))
         for k, (w, mu, sigma) in enumerate(zip(self.w, self.mu, self.sigma)):
-            #for i, sample in enumerate(X):
+            # for i, sample in enumerate(X):
             #    likelihood[i, k] = w * self._mvn(mu, sigma, self.d, sample[:, None])
-            likelihood[:, k] = w * self._mvn_pdf_m(mu.reshape(1, -1), sigma, X)
+            likelihood[:, k] = w * self._mvn_pdf_m(mu.T, sigma, X)
         return likelihood
 
     def log_likelihood_sample(self, X):
@@ -64,11 +64,12 @@ class GMM:
         self.mu = np.dot(gamma.T, X) / n_w[:, None]
         self.mu = self.mu[:, :, None]
         for k in range(self.k):
-            self.sigma[k] = np.zeros((self.d, self.d))
-            for i, sample in enumerate(X):
-                diff = sample[:, None] - self.mu[k]
-                self.sigma[k] += gamma[i, k] * np.dot(diff, diff.T)
-        self.sigma = self.sigma / n_w[:, None, None]
+            diff = X - self.mu[k].T
+            self.sigma[k] = np.dot(gamma[:, k] * diff.T, diff) / n_w[k]
+            # for i, sample in enumerate(X):
+            #    diff = sample[:, None] - self.mu[k]
+            #    self.sigma[k] += np.dot(gamma[i, k] * diff, diff.T)
+        # self.sigma = self.sigma / n_w[:, None, None]
 
     def fit(self, X):
         self._init_param(X)
@@ -140,6 +141,4 @@ if __name__ == "__main__":
     labels = gmm.classify(data)
     plt.scatter(data[:, 0], data[:, 1], c=labels)
     plt.show()
-    print(accuracy_score(target, labels))
-    print(target)
-    print(labels)
+    print(adjusted_rand_score(target, labels))
