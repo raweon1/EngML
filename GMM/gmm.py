@@ -3,10 +3,12 @@ from matplotlib.colors import LogNorm
 from scipy.stats import multivariate_normal
 from sklearn.datasets import load_iris
 import matplotlib.pyplot as plt
+from sklearn.metrics import accuracy_score
 
 
 class GMM:
-    def __init__(self, k, tol=1e-5):
+    def __init__(self, k, max_iter=1000, tol=1e-5):
+        self.max_iter = max_iter
         self.k = k
         self.w = None
         self.mu = None
@@ -24,16 +26,25 @@ class GMM:
         for i in range(self.k):
             self.sigma[i] = np.cov(X[np.random.choice(X.shape[0], size=X.shape[0] // self.k)].T)
 
-    def _mvn(self, mu, sigma, d, X):
+    def _mvn(self, mu, sigma, d, x):
+        diff = x - mu
         a = 1 / (np.power(2 * np.pi, d / 2) * np.power(np.linalg.det(sigma), 0.5))
-        b = np.exp(-0.5 * np.dot(np.dot((X - mu).T, np.linalg.inv(sigma)), X - mu))
+        b = np.exp(-0.5 * np.dot(np.dot(diff.T, np.linalg.inv(sigma)), diff))
+        return a * b
+
+    def _mvn_pdf_m(self, mu, sigma, X):
+        d = sigma.shape[0]
+        diff = X - mu
+        a = 1 / (np.power(2 * np.pi, d / 2) * np.power(np.linalg.det(sigma), 0.5))
+        b = np.exp(-0.5 * np.sum(np.dot(diff, np.linalg.inv(sigma)) * diff, axis=1))
         return a * b
 
     def _likelihood(self, X):
         likelihood = np.zeros((X.shape[0], self.k))
         for k, (w, mu, sigma) in enumerate(zip(self.w, self.mu, self.sigma)):
-            for i, sample in enumerate(X):
-                likelihood[i, k] = w * self._mvn(mu, sigma, self.d, sample[:, None])
+            #for i, sample in enumerate(X):
+            #    likelihood[i, k] = w * self._mvn(mu, sigma, self.d, sample[:, None])
+            likelihood[:, k] = w * self._mvn_pdf_m(mu.reshape(1, -1), sigma, X)
         return likelihood
 
     def log_likelihood_sample(self, X):
@@ -55,19 +66,22 @@ class GMM:
         for k in range(self.k):
             self.sigma[k] = np.zeros((self.d, self.d))
             for i, sample in enumerate(X):
-                sample = sample[:, None] - self.mu[k]
-                self.sigma[k] += gamma[i, k] * np.dot(sample, sample.T)
+                diff = sample[:, None] - self.mu[k]
+                self.sigma[k] += gamma[i, k] * np.dot(diff, diff.T)
         self.sigma = self.sigma / n_w[:, None, None]
 
-    def fit(self, X, max_iter=1000):
+    def fit(self, X):
         self._init_param(X)
-        for i in range(max_iter):
+        for i in range(self.max_iter):
             likelihood = self._likelihood(X)
             log_likelihood = np.sum(np.log(np.sum(likelihood, axis=1)))
             gamma = self._e_step(likelihood)
             self._m_step(X, gamma)
             if np.abs(log_likelihood - self.log_likelihood(X)) <= self.tol:
                 break
+
+    def classify(self, X):
+        return np.argmax(self._likelihood(X), axis=1)
 
 
 def plot_contours(data, means, covs, title):
@@ -114,9 +128,18 @@ def plot_combined_contours(data, gmm_score_function, means, ):
 
 
 if __name__ == "__main__":
-    data = load_iris()["data"][:, [2, 3]]
-    gmm = GMM(3)
-    gmm.fit(data, max_iter=10000)
-    # plot_contours(data, gmm.mu[:, :, 0], gmm.sigma[:, :, 0], "hello")
+    iris = load_iris()
+    data = iris["data"][:, [2, 3]]
+    target = iris["target"]
+    gmm = GMM(3, max_iter=10000, tol=1e-15)
+    gmm.fit(data)
+    plot_contours(data, gmm.mu[:, :, 0], gmm.sigma[:, :, 0], "hello")
+    plt.show()
     plot_combined_contours(data, gmm.log_likelihood_sample, gmm.mu)
     plt.show()
+    labels = gmm.classify(data)
+    plt.scatter(data[:, 0], data[:, 1], c=labels)
+    plt.show()
+    print(accuracy_score(target, labels))
+    print(target)
+    print(labels)
