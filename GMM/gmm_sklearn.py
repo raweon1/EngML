@@ -5,8 +5,8 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 
-data = load_iris()["data"][:, [2, 3]]
-gmm = GaussianMixture(3, covariance_type="full")
+data = load_iris()["data"][:, [0, 1]]
+gmm = GaussianMixture(3, covariance_type="full", init_params="random")
 gmm.fit(data)
 
 print(gmm.covariances_.sum())

@@ -3,11 +3,11 @@ from matplotlib.colors import LogNorm
 from scipy.stats import multivariate_normal
 from sklearn.datasets import load_iris
 import matplotlib.pyplot as plt
-from sklearn.metrics import accuracy_score, adjusted_rand_score
+from sklearn.metrics import adjusted_rand_score
 
 
 class GMM:
-    def __init__(self, k, max_iter=1000, tol=1e-5):
+    def __init__(self, k, max_iter=1000, tol=1e-5, eps=1e-5):
         self.max_iter = max_iter
         self.k = k
         self.w = None
@@ -15,16 +15,18 @@ class GMM:
         self.sigma = None
         self.d = None
         self.tol = tol
+        self.eps = eps
 
     def _init_param(self, X):
-        self.w = np.random.uniform(size=self.k)
-        self.w = self.w / self.w.sum()
-        # self.w = np.full(self.k, 1 / self.k)
+        # self.w = np.random.uniform(size=self.k)
+        # self.w = self.w / self.w.sum()
+        self.w = np.full(self.k, 1 / self.k)
         self.d = X.shape[1]
         self.mu = X[np.random.choice(X.shape[0], size=self.k)][:, :, None]
-        self.sigma = np.zeros((self.k, self.d, self.d))
-        for i in range(self.k):
-            self.sigma[i] = np.cov(X[np.random.choice(X.shape[0], size=X.shape[0] // self.k)].T)
+        #self.sigma = np.zeros((self.k, self.d, self.d))
+        #for i in range(self.k):
+        #    self.sigma[i] = np.cov(X[np.random.choice(X.shape[0], size=X.shape[0] // self.k)].T)
+        self.sigma = np.array([np.identity(X.shape[1]) for i in range(self.k)])
 
     def _mvn(self, mu, sigma, d, x):
         diff = x - mu
@@ -65,11 +67,12 @@ class GMM:
         self.mu = self.mu[:, :, None]
         for k in range(self.k):
             diff = X - self.mu[k].T
-            self.sigma[k] = np.dot(gamma[:, k] * diff.T, diff) / n_w[k]
+            self.sigma[k] = np.dot(gamma[:, k] * diff.T, diff) / n_w[k] + self.eps
+            # self.sigma[k] = np.zeros((self.d, self.d))
             # for i, sample in enumerate(X):
             #    diff = sample[:, None] - self.mu[k]
-            #    self.sigma[k] += np.dot(gamma[i, k] * diff, diff.T)
-        # self.sigma = self.sigma / n_w[:, None, None]
+            #    self.sigma[k] += gamma[i, k] * np.dot(diff, diff.T)
+        # self.sigma = self.sigma / n_w[:, None, None] + self.eps
 
     def fit(self, X):
         self._init_param(X)
@@ -130,15 +133,15 @@ def plot_combined_contours(data, gmm_score_function, means, ):
 
 if __name__ == "__main__":
     iris = load_iris()
-    data = iris["data"][:, [2, 3]]
+    data = iris["data"][:, [0, 1]]
     target = iris["target"]
-    gmm = GMM(3, max_iter=10000, tol=1e-15)
+    gmm = GMM(2, max_iter=10000, tol=1e-5)
     gmm.fit(data)
-    plot_contours(data, gmm.mu[:, :, 0], gmm.sigma[:, :, 0], "hello")
+    plot_contours(data, gmm.mu[:, :, 0], gmm.sigma, "hello")
     plt.show()
-    plot_combined_contours(data, gmm.log_likelihood_sample, gmm.mu)
+    # plot_combined_contours(data, gmm.log_likelihood_sample, gmm.mu)
     plt.show()
     labels = gmm.classify(data)
-    plt.scatter(data[:, 0], data[:, 1], c=labels)
+    #plt.scatter(data[:, 0], data[:, 1], c=labels)
     plt.show()
     print(adjusted_rand_score(target, labels))
